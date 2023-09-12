@@ -5571,6 +5571,12 @@
       "config_flow": false,
       "iot_class": "local_push"
     },
+    "tacitus": {
+      "name": "TacitusAPI",
+      "integration_type": "hub",
+      "config_flow": true,
+      "iot_class": "local_polling"
+    },
     "tado": {
       "name": "Tado",
       "integration_type": "hub",

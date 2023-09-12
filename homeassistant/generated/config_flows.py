@@ -460,6 +460,7 @@ FLOWS = {
         "syncthru",
         "synology_dsm",
         "system_bridge",
+        "tacitus",
         "tado",
         "tailscale",
         "tankerkoenig",

@@ -2297,6 +2297,9 @@ renson-endura-delta==1.5.0
 # homeassistant.components.reolink
 reolink-aio==0.7.9
 
+# homeassistant.components.tacitus
+requests==2.31.0
+
 # homeassistant.components.idteck_prox
 rfk101py==0.0.1
 
