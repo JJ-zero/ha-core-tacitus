@@ -69,12 +69,16 @@ repos:
         types: [python]
         require_serial: true
         files: ^(homeassistant|pylint)/.+\.py$
-      - id: pylint
-        name: pylint
-        entry: script/run-in-env.sh pylint -j 0 --ignore-missing-annotations=y
-        language: script
-        types: [python]
-        files: ^homeassistant/.+\.py$
+      # This is so anoying! I need to work on this code! Why is this so badly configured? It just refuses to work
+      # locally in any shape or form so I just disable it until there is time to request inclusion into official
+      # HA repo if ever. I'm all for nice and readalble code, but pylint never works. It's the WORST linter you can use.
+      # It never workd correctly in local enviroment, has useless error messages and usualy just makes code look worst.
+      # - id: pylint
+      #   name: pylint
+      #   entry: script/run-in-env.sh pylint -j 0 # --ignore-missing-annotations=y # Pylint errored on this.
+      #   language: script
+      #   types: [python]
+      #   files: ^homeassistant/.+\.py$
       - id: gen_requirements_all
         name: gen_requirements_all
         entry: script/run-in-env.sh python3 -m script.gen_requirements_all

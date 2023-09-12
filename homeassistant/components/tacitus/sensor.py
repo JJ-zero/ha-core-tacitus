@@ -25,13 +25,17 @@ from .const import DOMAIN
 
 
 class GetCached:
+    """Super simple cache for repeated request to Tacitus API. Have to be rewritten later."""
+
     def __init__(self, url, minimum_delay_sec=60) -> None:
+        """Set target url and maximum delay between requests."""
         self.url = url
-        self.last_reponse = None
-        self.last_update = None
+        self.last_reponse: requests.Response | None = None
+        self.last_update: datetime | None = None
         self.delay = minimum_delay_sec
 
     def __call__(self) -> Any:
+        """With this call you can get a new or cached response. By reading this docstring you can gues that I despise this docstring linter."""
         if self.last_update is None or self.last_update < datetime.now():
             self.last_reponse = requests.get(self.url)
             self.last_update = datetime.now() + timedelta(seconds=self.delay)
@@ -76,9 +80,13 @@ def setup_platform(
 
 
 class HDDSensorBase:
-    _name_template = "{} sensor"
+    """Shared basic structure for all HDD sensor entities."""
+
+    _name_template: str = "{} sensor"
+    _attr_name: str | None
 
     def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
+        """Entity is identified by HDDs serial number, path can change."""
         super().__init__()
         self.serial = hdd_serial
         self._attr_name = self._name_template.format(device_path)
@@ -88,6 +96,7 @@ class HDDSensorBase:
     # This is not working yet. TODO: Resolve it later # https://developers.home-assistant.io/docs/device_registry_index
     @property
     def device_info(self) -> DeviceInfo | None:
+        """Return the class of this entity."""
         return {
             "identifiers": {(DOMAIN, self.serial)},
             "name": f"HDD {self._path}",
@@ -98,10 +107,14 @@ class HDDSensorBase:
 
 
 class HDDSensor(HDDSensorBase, SensorEntity):
+    """SensorEntity extended of HDD basic functions."""
+
     pass
 
 
 class HDDBinnarySensor(HDDSensorBase, BinarySensorEntity):
+    """BinarySensorEntity extended of HDD basic functions."""
+
     pass
 
 
@@ -115,6 +128,7 @@ class HDDTemperatureSensor(HDDSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def update(self) -> None:
+        """Update method. What docstring you want here?."""
         self._attr_native_value = None
         resp = self._get_data()
         if resp.status_code == 200:
@@ -125,10 +139,13 @@ class HDDTemperatureSensor(HDDSensor):
 
 
 class HDDPowerState(HDDSensor):
+    """Entity that provides information of HDDs power state."""
+
     _attr_name = "HDD Power State"
     _name_template = "HDD {} Power State"
 
     def update(self) -> None:
+        """Update method. What docstring you want here?."""
         self._attr_native_value = None
         resp = self._get_data()
         if resp.status_code == 200:
@@ -139,10 +156,13 @@ class HDDPowerState(HDDSensor):
 
 
 class HDDModelName(HDDSensor):
+    """Entity that provides information of HDDs model name."""
+
     _attr_name = "HDD Model Name"
     _name_template = "HDD {} Model Name"
 
     def update(self) -> None:
+        """Update method. What docstring you want here?."""
         self._attr_native_value = None
         resp = self._get_data()
         if resp.status_code == 200:
@@ -153,11 +173,14 @@ class HDDModelName(HDDSensor):
 
 
 class HDDSmartError(HDDBinnarySensor):
+    """Entity that provides information of healt status of HDD."""
+
     _attr_name = "HDD error S.M.A.R.T. "
     _name_template = "HDD {} error S.M.A.R.T. "
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
     def update(self) -> None:
+        """Update method. What docstring you want here?."""
         self._attr_is_on = None
         resp = self._get_data()
         if resp.status_code == 200:
@@ -168,10 +191,13 @@ class HDDSmartError(HDDBinnarySensor):
 
 
 class HDDType(HDDSensor):
+    """Entity that provides information of connection type HDD uses."""
+
     _attr_name = "HDD type"
     _name_template = "HDD {} type"
 
     def update(self) -> None:
+        """Update method. What docstring you want here?."""
         self._attr_native_value = None
         resp = self._get_data()
         if resp.status_code == 200:
