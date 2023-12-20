@@ -52,7 +52,7 @@ def setup_platform(
     # add_entities([HDDTemperatureSensor(hdd_serial="J3320082G9J6BA")])
     host = config[CONF_HOST]
     # TODO: Do it better
-    cached = GetCached(f"{host}/smartctl/")
+    cached = GetCached(f"{host}/drives/")
     resp = cached()
 
     if resp.status_code == 200:
