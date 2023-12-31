@@ -22,11 +22,10 @@ from typing import Any, Optional
 import voluptuous as vol
 
 from homeassistant import config_entries
-import homeassistant.helpers.config_validation as cv
 
 from .const import DOMAIN
 
-SCHEMA_API = vol.Schema({vol.Required("api_url"): cv.url})
+SCHEMA_API = vol.Schema({vol.Required("api_url"): str})
 
 
 class TacitusCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -34,7 +33,7 @@ class TacitusCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     data: Optional[dict[str, Any]]
 
-    async def async_step_api(self, user_input: Optional[dict[str, Any]] = None):
+    async def async_step_user(self, user_input: Optional[dict[str, Any]] = None):
         """First step setting up URL of Tacitus API."""
 
         errors: dict[str, str] = {}

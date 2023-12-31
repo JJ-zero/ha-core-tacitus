@@ -1,8 +1,12 @@
 {
   "config": {
     "step": {
-      "confirm": {
-        "description": "[%key:common::config_flow::description::confirm_setup%]"
+      "user": {
+        "data": {
+          "api_url": "Tacitus API URL:"
+        },
+        "description": "[%key:common::config_flow::description::confirm_setup%]",
+        "title": "Tacitus setup"
       }
     },
     "abort": {
