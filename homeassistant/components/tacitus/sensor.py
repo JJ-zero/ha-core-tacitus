@@ -4,8 +4,9 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from typing import Any
 
-import requests
+import httpx
 
+from homeassistant import config_entries, core
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
@@ -16,10 +17,7 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import CONF_HOST, TEMP_CELSIUS
-from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from homeassistant.helpers.typing import ConfigType, DiscoveryInfoType
 
 from .const import DOMAIN
 
@@ -30,37 +28,39 @@ class GetCached:
     def __init__(self, url, minimum_delay_sec=60) -> None:
         """Set target url and maximum delay between requests."""
         self.url = url
-        self.last_reponse: requests.Response | None = None
+        self.last_reponse: httpx.Response | None = None
         self.last_update: datetime | None = None
         self.delay = minimum_delay_sec
 
-    def __call__(self) -> Any:
+    async def __call__(self) -> Any:
         """With this call you can get a new or cached response. By reading this docstring you can gues that I despise this docstring linter."""
         if self.last_update is None or self.last_update < datetime.now():
-            self.last_reponse = requests.get(self.url)
+            async with httpx.AsyncClient() as client:
+                self.last_reponse = await client.get(self.url)
             self.last_update = datetime.now() + timedelta(seconds=self.delay)
         return self.last_reponse
 
 
-def setup_platform(
-    hass: HomeAssistant,
-    config: ConfigType,
-    add_entities: AddEntitiesCallback,
-    discovery_info: DiscoveryInfoType | None = None,
+async def async_setup_entry(
+    hass: core.HomeAssistant,
+    config_entry: config_entries.ConfigEntry,
+    async_add_entities,
 ) -> None:
-    """Set up the sensor platform."""
-    # add_entities([HDDTemperatureSensor(hdd_serial="J3320082G9J6BA")])
-    host = config[CONF_HOST]
+    """Setups sensors from a config entry created in the integrations UI."""
+
+    host = config_entry.data[CONF_HOST]
+    if host[-1] == "/":
+        host = host[:-1]
     # TODO: Do it better
     cached = GetCached(f"{host}/drives/")
-    resp = cached()
+    resp = await cached()
 
     if resp.status_code == 200:
         data = resp.json()
         for drive in data.get("result"):
             serial = drive.get("serial_number")
             path = drive.get("block_device_path")
-            add_entities(
+            async_add_entities(
                 [
                     HDDPowerState(
                         hdd_serial=serial, device_path=path, cached_request=cached
@@ -127,10 +127,10 @@ class HDDTemperatureSensor(HDDSensor):
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
 
-    def update(self) -> None:
+    async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
         self._attr_native_value = None
-        resp = self._get_data()
+        resp = await self._get_data()
         if resp.status_code == 200:
             data = resp.json()
             for drive in data.get("result"):
@@ -144,10 +144,10 @@ class HDDPowerState(HDDSensor):
     _attr_name = "HDD Power State"
     _name_template = "HDD {} Power State"
 
-    def update(self) -> None:
+    async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
         self._attr_native_value = None
-        resp = self._get_data()
+        resp = await self._get_data()
         if resp.status_code == 200:
             data = resp.json()
             for drive in data.get("result"):
@@ -161,10 +161,10 @@ class HDDModelName(HDDSensor):
     _attr_name = "HDD Model Name"
     _name_template = "HDD {} Model Name"
 
-    def update(self) -> None:
+    async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
         self._attr_native_value = None
-        resp = self._get_data()
+        resp = await self._get_data()
         if resp.status_code == 200:
             data = resp.json()
             for drive in data.get("result"):
@@ -179,10 +179,10 @@ class HDDSmartError(HDDBinnarySensor):
     _name_template = "HDD {} error S.M.A.R.T. "
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
 
-    def update(self) -> None:
+    async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
         self._attr_is_on = None
-        resp = self._get_data()
+        resp = await self._get_data()
         if resp.status_code == 200:
             data = resp.json()
             for drive in data.get("result"):
@@ -196,10 +196,10 @@ class HDDType(HDDSensor):
     _attr_name = "HDD type"
     _name_template = "HDD {} type"
 
-    def update(self) -> None:
+    async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
         self._attr_native_value = None
-        resp = self._get_data()
+        resp = await self._get_data()
         if resp.status_code == 200:
             data = resp.json()
             for drive in data.get("result"):

@@ -22,10 +22,11 @@ from typing import Any, Optional
 import voluptuous as vol
 
 from homeassistant import config_entries
+from homeassistant.const import CONF_HOST
 
 from .const import DOMAIN
 
-SCHEMA_API = vol.Schema({vol.Required("api_url"): str})
+SCHEMA_API = vol.Schema({vol.Required(CONF_HOST): str})
 
 
 class TacitusCustomConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
