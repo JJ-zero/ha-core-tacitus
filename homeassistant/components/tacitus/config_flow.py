@@ -26,6 +26,7 @@ from homeassistant.const import CONF_HOST
 
 from .const import DOMAIN
 
+# TODO: add server name / id
 SCHEMA_API = vol.Schema({vol.Required(CONF_HOST): str})
 
 

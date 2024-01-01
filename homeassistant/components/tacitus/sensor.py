@@ -51,7 +51,6 @@ async def async_setup_entry(
     host = config_entry.data[CONF_HOST]
     if host[-1] == "/":
         host = host[:-1]
-    # TODO: Do it better
     cached = GetCached(f"{host}/drives/")
     resp = await cached()
 
@@ -75,7 +74,8 @@ async def async_setup_entry(
                         hdd_serial=serial, device_path=path, cached_request=cached
                     ),
                     HDDType(hdd_serial=serial, device_path=path, cached_request=cached),
-                ]
+                ],
+                update_before_add=True,
             )
 
 
@@ -84,6 +84,7 @@ class HDDSensorBase:
 
     _name_template: str = "{} sensor"
     _attr_name: str | None
+    _sensor_posfix = ""
 
     def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
         """Entity is identified by HDDs serial number, path can change."""
@@ -93,29 +94,43 @@ class HDDSensorBase:
         self._path = device_path
         self._get_data = cached_request
 
-    # This is not working yet. TODO: Resolve it later # https://developers.home-assistant.io/docs/device_registry_index
-    @property
-    def device_info(self) -> DeviceInfo | None:
-        """Return the class of this entity."""
-        return {
-            "identifiers": {(DOMAIN, self.serial)},
-            "name": f"HDD {self._path}",
-            "manufacturer": "JJs homelab",
-            "model": "Carbon",
-            "sw_version": "0.0.1",
-        }
-
 
 class HDDSensor(HDDSensorBase, SensorEntity):
     """SensorEntity extended of HDD basic functions."""
 
-    pass
+    def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
+        """Entity is identified by HDDs serial number, path can change."""
+        super().__init__(hdd_serial, device_path, cached_request)
+
+        # TODO: Include server id in unique id somehow
+        self._attr_unique_id = f"{DOMAIN}_{device_path.lower()}_{self._sensor_posfix}"
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.serial)},
+            name=f"HDD {self._path}",
+            manufacturer="JJs homelab",
+            model="Carbon",
+            sw_version="0.0.1",
+        )
 
 
 class HDDBinnarySensor(HDDSensorBase, BinarySensorEntity):
     """BinarySensorEntity extended of HDD basic functions."""
 
-    pass
+    def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
+        """Entity is identified by HDDs serial number, path can change."""
+        super().__init__(hdd_serial, device_path, cached_request)
+
+        # TODO: Include server id in unique id somehow
+        self._attr_unique_id = f"{DOMAIN}_{device_path.lower()}_{self._sensor_posfix}"
+
+        self._attr_device_info = DeviceInfo(
+            identifiers={(DOMAIN, self.serial)},
+            name=f"HDD {self._path}",
+            manufacturer="JJs homelab",
+            model="Carbon",
+            sw_version="0.0.1",
+        )
 
 
 class HDDTemperatureSensor(HDDSensor):
@@ -126,6 +141,7 @@ class HDDTemperatureSensor(HDDSensor):
     _attr_native_unit_of_measurement = TEMP_CELSIUS
     _attr_device_class = SensorDeviceClass.TEMPERATURE
     _attr_state_class = SensorStateClass.MEASUREMENT
+    _sensor_posfix = "temperature"
 
     async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
@@ -143,6 +159,7 @@ class HDDPowerState(HDDSensor):
 
     _attr_name = "HDD Power State"
     _name_template = "HDD {} Power State"
+    _sensor_posfix = "power_state"
 
     async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
@@ -160,6 +177,7 @@ class HDDModelName(HDDSensor):
 
     _attr_name = "HDD Model Name"
     _name_template = "HDD {} Model Name"
+    _sensor_posfix = "model_name"
 
     async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
@@ -178,6 +196,7 @@ class HDDSmartError(HDDBinnarySensor):
     _attr_name = "HDD error S.M.A.R.T. "
     _name_template = "HDD {} error S.M.A.R.T. "
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
+    _sensor_posfix = "smart_error"
 
     async def async_update(self) -> None:
         """Update method. What docstring you want here?."""
@@ -195,6 +214,7 @@ class HDDType(HDDSensor):
 
     _attr_name = "HDD type"
     _name_template = "HDD {} type"
+    _sensor_posfix = "type"
 
     async def async_update(self) -> None:
         """Update method. What docstring you want here?."""

@@ -1776,9 +1776,6 @@ renson-endura-delta==1.7.1
 # homeassistant.components.reolink
 reolink-aio==0.8.4
 
-# homeassistant.components.tacitus
-requests==2.31.0
-
 # homeassistant.components.rflink
 rflink==0.0.65
 
