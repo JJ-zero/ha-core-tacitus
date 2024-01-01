@@ -85,6 +85,8 @@ class HDDSensorBase:
     _name_template: str = "{} sensor"
     _attr_name: str | None
     _sensor_posfix = ""
+    _attr_device_info: DeviceInfo | None = None
+    _attr_unique_id: str | None = None
 
     def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
         """Entity is identified by HDDs serial number, path can change."""
@@ -94,14 +96,6 @@ class HDDSensorBase:
         self._path = device_path
         self._get_data = cached_request
 
-
-class HDDSensor(HDDSensorBase, SensorEntity):
-    """SensorEntity extended of HDD basic functions."""
-
-    def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
-        """Entity is identified by HDDs serial number, path can change."""
-        super().__init__(hdd_serial, device_path, cached_request)
-
         # TODO: Include server id in unique id somehow
         self._attr_unique_id = f"{DOMAIN}_{device_path.lower()}_{self._sensor_posfix}"
 
@@ -112,25 +106,18 @@ class HDDSensor(HDDSensorBase, SensorEntity):
             model="Carbon",
             sw_version="0.0.1",
         )
+
+
+class HDDSensor(HDDSensorBase, SensorEntity):
+    """SensorEntity extended of HDD basic functions."""
+
+    pass
 
 
 class HDDBinnarySensor(HDDSensorBase, BinarySensorEntity):
     """BinarySensorEntity extended of HDD basic functions."""
 
-    def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
-        """Entity is identified by HDDs serial number, path can change."""
-        super().__init__(hdd_serial, device_path, cached_request)
-
-        # TODO: Include server id in unique id somehow
-        self._attr_unique_id = f"{DOMAIN}_{device_path.lower()}_{self._sensor_posfix}"
-
-        self._attr_device_info = DeviceInfo(
-            identifiers={(DOMAIN, self.serial)},
-            name=f"HDD {self._path}",
-            manufacturer="JJs homelab",
-            model="Carbon",
-            sw_version="0.0.1",
-        )
+    pass
 
 
 class HDDTemperatureSensor(HDDSensor):
