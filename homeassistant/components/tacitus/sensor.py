@@ -97,7 +97,9 @@ class HDDSensorBase:
         self._get_data = cached_request
 
         # TODO: Include server id in unique id somehow
-        self._attr_unique_id = f"{DOMAIN}_{device_path.lower()}_{self._sensor_posfix}"
+        self._attr_unique_id = (
+            f"{DOMAIN}_drive_{device_path.lower()}_{self._sensor_posfix}"
+        )
 
         self._attr_device_info = DeviceInfo(
             identifiers={(DOMAIN, self.serial)},
