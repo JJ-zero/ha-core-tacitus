@@ -1,8 +1,9 @@
 """Platform for sensor integration."""
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-from typing import Any
+from asyncio import timeout
+from datetime import timedelta
+import logging
 
 import httpx
 
@@ -17,28 +18,48 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import CONF_HOST, TEMP_CELSIUS
+from homeassistant.core import callback
 from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.update_coordinator import (
+    CoordinatorEntity,
+    DataUpdateCoordinator,
+    UpdateFailed,
+)
 
 from .const import DOMAIN
 
+# from .tacitus_api import TacitusAPI
 
-class GetCached:
-    """Super simple cache for repeated request to Tacitus API. Have to be rewritten later."""
+_LOGGER = logging.getLogger(__name__)
 
-    def __init__(self, url, minimum_delay_sec=60) -> None:
-        """Set target url and maximum delay between requests."""
+
+class BasicCoordinator(DataUpdateCoordinator):
+    """My custom coordinator."""
+
+    def __init__(self, hass, url: str):
+        """Initialize my coordinator."""
+        super().__init__(
+            hass,
+            _LOGGER,
+            # Name of the data. For logging purposes.
+            name="Basic tacitus coordinator",
+            # Polling interval. Will only be polled if there are subscribers.
+            update_interval=timedelta(seconds=60),
+        )
         self.url = url
-        self.last_reponse: httpx.Response | None = None
-        self.last_update: datetime | None = None
-        self.delay = minimum_delay_sec
 
-    async def __call__(self) -> Any:
-        """With this call you can get a new or cached response. By reading this docstring you can gues that I despise this docstring linter."""
-        if self.last_update is None or self.last_update < datetime.now():
-            async with httpx.AsyncClient() as client:
-                self.last_reponse = await client.get(self.url)
-            self.last_update = datetime.now() + timedelta(seconds=self.delay)
-        return self.last_reponse
+    async def _async_update_data(self):
+        """Fetch data from API endpoint.
+
+        This is the place to pre-process the data to lookup tables
+        so entities can quickly look up their data.
+        """
+        async with timeout(10), httpx.AsyncClient() as client:
+            response = await client.get(self.url)
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise UpdateFailed(f"HTTP status code {response.status_code}")
 
 
 async def async_setup_entry(
@@ -51,35 +72,36 @@ async def async_setup_entry(
     host = config_entry.data[CONF_HOST]
     if host[-1] == "/":
         host = host[:-1]
-    cached = GetCached(f"{host}/drives/")
-    resp = await cached()
+    # cached = GetCached(f"{host}/drives/")
+    coordinator = BasicCoordinator(hass, f"{host}/drives/")
 
-    if resp.status_code == 200:
-        data = resp.json()
-        for drive in data.get("result"):
-            serial = drive.get("serial_number")
-            path = drive.get("block_device_path")
-            async_add_entities(
-                [
-                    HDDPowerState(
-                        hdd_serial=serial, device_path=path, cached_request=cached
-                    ),
-                    HDDTemperatureSensor(
-                        hdd_serial=serial, device_path=path, cached_request=cached
-                    ),
-                    HDDModelName(
-                        hdd_serial=serial, device_path=path, cached_request=cached
-                    ),
-                    HDDSmartError(
-                        hdd_serial=serial, device_path=path, cached_request=cached
-                    ),
-                    HDDType(hdd_serial=serial, device_path=path, cached_request=cached),
-                ],
-                update_before_add=True,
-            )
+    await coordinator.async_config_entry_first_refresh()
+
+    data = coordinator.data
+    for drive in data.get("result"):
+        serial = drive.get("serial_number")
+        path = drive.get("block_device_path")
+        async_add_entities(
+            [
+                HDDPowerState(
+                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                ),
+                HDDTemperatureSensor(
+                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                ),
+                HDDModelName(
+                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                ),
+                HDDSmartError(
+                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                ),
+                HDDType(hdd_serial=serial, device_path=path, coordinator=coordinator),
+            ],
+            update_before_add=True,
+        )
 
 
-class HDDSensorBase:
+class HDDSensorBase(CoordinatorEntity):
     """Shared basic structure for all HDD sensor entities."""
 
     _name_template: str = "{} sensor"
@@ -88,13 +110,14 @@ class HDDSensorBase:
     _attr_device_info: DeviceInfo | None = None
     _attr_unique_id: str | None = None
 
-    def __init__(self, hdd_serial, device_path, cached_request: GetCached) -> None:
+    def __init__(
+        self, hdd_serial, device_path, coordinator: DataUpdateCoordinator
+    ) -> None:
         """Entity is identified by HDDs serial number, path can change."""
-        super().__init__()
+        super().__init__(coordinator, hdd_serial)
         self.serial = hdd_serial
         self._attr_name = self._name_template.format(device_path)
         self._path = device_path
-        self._get_data = cached_request
 
         # TODO: Include server id in unique id somehow
         self._attr_unique_id = (
@@ -132,15 +155,13 @@ class HDDTemperatureSensor(HDDSensor):
     _attr_state_class = SensorStateClass.MEASUREMENT
     _sensor_posfix = "temperature"
 
-    async def async_update(self) -> None:
-        """Update method. What docstring you want here?."""
-        self._attr_native_value = None
-        resp = await self._get_data()
-        if resp.status_code == 200:
-            data = resp.json()
-            for drive in data.get("result"):
-                if drive.get("serial_number") == self.serial:
-                    self._attr_native_value = drive.get("temperature", None)
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        for drive in self.coordinator.data.get("result"):
+            if drive.get("serial_number") == self.serial:
+                self._attr_native_value = drive.get("temperature", None)
+        self.async_write_ha_state()
 
 
 class HDDPowerState(HDDSensor):
@@ -150,15 +171,13 @@ class HDDPowerState(HDDSensor):
     _name_template = "HDD {} Power State"
     _sensor_posfix = "power_state"
 
-    async def async_update(self) -> None:
-        """Update method. What docstring you want here?."""
-        self._attr_native_value = None
-        resp = await self._get_data()
-        if resp.status_code == 200:
-            data = resp.json()
-            for drive in data.get("result"):
-                if drive.get("serial_number") == self.serial:
-                    self._attr_native_value = drive.get("power_mode", None)
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        for drive in self.coordinator.data.get("result"):
+            if drive.get("serial_number") == self.serial:
+                self._attr_native_value = drive.get("power_mode", None)
+        self.async_write_ha_state()
 
 
 class HDDModelName(HDDSensor):
@@ -168,15 +187,13 @@ class HDDModelName(HDDSensor):
     _name_template = "HDD {} Model Name"
     _sensor_posfix = "model_name"
 
-    async def async_update(self) -> None:
-        """Update method. What docstring you want here?."""
-        self._attr_native_value = None
-        resp = await self._get_data()
-        if resp.status_code == 200:
-            data = resp.json()
-            for drive in data.get("result"):
-                if drive.get("serial_number") == self.serial:
-                    self._attr_native_value = drive.get("model_name", None)
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        for drive in self.coordinator.data.get("result"):
+            if drive.get("serial_number") == self.serial:
+                self._attr_native_value = drive.get("model_name", None)
+        self.async_write_ha_state()
 
 
 class HDDSmartError(HDDBinnarySensor):
@@ -187,15 +204,13 @@ class HDDSmartError(HDDBinnarySensor):
     _attr_device_class = BinarySensorDeviceClass.PROBLEM
     _sensor_posfix = "smart_error"
 
-    async def async_update(self) -> None:
-        """Update method. What docstring you want here?."""
-        self._attr_is_on = None
-        resp = await self._get_data()
-        if resp.status_code == 200:
-            data = resp.json()
-            for drive in data.get("result"):
-                if drive.get("serial_number") == self.serial:
-                    self._attr_is_on = not drive.get("smart_status_passed")
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        for drive in self.coordinator.data.get("result"):
+            if drive.get("serial_number") == self.serial:
+                self._attr_is_on = not drive.get("smart_status_passed")
+        self.async_write_ha_state()
 
 
 class HDDType(HDDSensor):
@@ -205,12 +220,10 @@ class HDDType(HDDSensor):
     _name_template = "HDD {} type"
     _sensor_posfix = "type"
 
-    async def async_update(self) -> None:
-        """Update method. What docstring you want here?."""
-        self._attr_native_value = None
-        resp = await self._get_data()
-        if resp.status_code == 200:
-            data = resp.json()
-            for drive in data.get("result"):
-                if drive.get("serial_number") == self.serial:
-                    self._attr_native_value = drive.get("drive_type", None)
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        for drive in self.coordinator.data.get("result"):
+            if drive.get("serial_number") == self.serial:
+                self._attr_native_value = drive.get("drive_type", None)
+        self.async_write_ha_state()
