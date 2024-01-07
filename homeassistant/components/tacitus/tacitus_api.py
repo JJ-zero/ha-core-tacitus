@@ -22,7 +22,7 @@ class TacitusAPI:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{self.host}/drives/")
             if response.status_code == 200:
-                return await response.json()
+                return response.json()
             else:
                 raise UpdateFailed(f"HTTP status code {response.status_code}")
 
@@ -31,6 +31,6 @@ class TacitusAPI:
         async with httpx.AsyncClient() as client:
             response = await client.get(f"{self.host}/wireguard/")
             if response.status_code == 200:
-                return await response.json()
+                return response.json()
             else:
                 raise UpdateFailed(f"HTTP status code {response.status_code}")
