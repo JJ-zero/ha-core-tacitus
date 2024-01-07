@@ -34,3 +34,12 @@ class TacitusAPI:
                 return response.json()
             else:
                 raise UpdateFailed(f"HTTP status code {response.status_code}")
+
+    async def get_zpools(self):
+        """Return data."""
+        async with httpx.AsyncClient() as client:
+            response = await client.get(f"{self.host}/zpool/")
+            if response.status_code == 200:
+                return response.json()
+            else:
+                raise UpdateFailed(f"HTTP status code {response.status_code}")

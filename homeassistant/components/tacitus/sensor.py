@@ -16,6 +16,7 @@ from .sensors.drives import (
     HDDTemperatureSensor,
     HDDType,
 )
+from .sensors.zpools import ZpoolAllocatedSensor, ZpoolHealthSensor, ZpoolSizeSensor
 from .tacitus_api import TacitusAPI
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,9 +30,7 @@ class BasicCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
-            # Name of the data. For logging purposes.
-            name="Basic tacitus coordinator",
-            # Polling interval. Will only be polled if there are subscribers.
+            name="Tacitus callback coordinator",
             update_interval=timedelta(seconds=60),
         )
         self.callback = api_callback
@@ -57,29 +56,49 @@ async def async_setup_entry(
     if host[-1] == "/":
         host = host[:-1]
     tacitus = TacitusAPI(host)
-    coordinator = BasicCoordinator(hass, tacitus.get_drives)
+    coordinator_drives = BasicCoordinator(hass, tacitus.get_drives)
 
-    await coordinator.async_config_entry_first_refresh()
+    await coordinator_drives.async_config_entry_first_refresh()
 
-    data = coordinator.data
+    data = coordinator_drives.data
     for drive in data.get("result"):
         serial = drive.get("serial_number")
         path = drive.get("block_device_path")
         async_add_entities(
             [
                 HDDPowerState(
-                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                    hdd_serial=serial, device_path=path, coordinator=coordinator_drives
                 ),
                 HDDTemperatureSensor(
-                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                    hdd_serial=serial, device_path=path, coordinator=coordinator_drives
                 ),
                 HDDModelName(
-                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                    hdd_serial=serial, device_path=path, coordinator=coordinator_drives
                 ),
                 HDDSmartError(
-                    hdd_serial=serial, device_path=path, coordinator=coordinator
+                    hdd_serial=serial, device_path=path, coordinator=coordinator_drives
                 ),
-                HDDType(hdd_serial=serial, device_path=path, coordinator=coordinator),
+                HDDType(
+                    hdd_serial=serial, device_path=path, coordinator=coordinator_drives
+                ),
+            ],
+            update_before_add=True,
+        )
+
+    coordinator_zpools = BasicCoordinator(hass, tacitus.get_zpools)
+    await coordinator_zpools.async_config_entry_first_refresh()
+    for pool in coordinator_zpools.data.get("result"):
+        async_add_entities(
+            [
+                ZpoolSizeSensor(
+                    pool_name=pool.get("name"), coordinator=coordinator_zpools
+                ),
+                ZpoolAllocatedSensor(
+                    pool_name=pool.get("name"), coordinator=coordinator_zpools
+                ),
+                ZpoolHealthSensor(
+                    pool_name=pool.get("name"), coordinator=coordinator_zpools
+                ),
             ],
             update_before_add=True,
         )
