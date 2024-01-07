@@ -5,8 +5,6 @@ from asyncio import timeout
 from datetime import timedelta
 import logging
 
-import httpx
-
 from homeassistant import config_entries, core
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -23,12 +21,10 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
     DataUpdateCoordinator,
-    UpdateFailed,
 )
 
 from .const import DOMAIN
-
-# from .tacitus_api import TacitusAPI
+from .tacitus_api import TacitusAPI
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +32,7 @@ _LOGGER = logging.getLogger(__name__)
 class BasicCoordinator(DataUpdateCoordinator):
     """My custom coordinator."""
 
-    def __init__(self, hass, url: str):
+    def __init__(self, hass, api_callback):
         """Initialize my coordinator."""
         super().__init__(
             hass,
@@ -46,7 +42,7 @@ class BasicCoordinator(DataUpdateCoordinator):
             # Polling interval. Will only be polled if there are subscribers.
             update_interval=timedelta(seconds=60),
         )
-        self.url = url
+        self.callback = api_callback
 
     async def _async_update_data(self):
         """Fetch data from API endpoint.
@@ -54,12 +50,8 @@ class BasicCoordinator(DataUpdateCoordinator):
         This is the place to pre-process the data to lookup tables
         so entities can quickly look up their data.
         """
-        async with timeout(10), httpx.AsyncClient() as client:
-            response = await client.get(self.url)
-            if response.status_code == 200:
-                return response.json()
-            else:
-                raise UpdateFailed(f"HTTP status code {response.status_code}")
+        async with timeout(10):
+            return await self.callback()
 
 
 async def async_setup_entry(
@@ -72,8 +64,8 @@ async def async_setup_entry(
     host = config_entry.data[CONF_HOST]
     if host[-1] == "/":
         host = host[:-1]
-    # cached = GetCached(f"{host}/drives/")
-    coordinator = BasicCoordinator(hass, f"{host}/drives/")
+    tacitus = TacitusAPI(host)
+    coordinator = BasicCoordinator(hass, tacitus.get_drives)
 
     await coordinator.async_config_entry_first_refresh()
 
